@@ -1570,8 +1570,7 @@ function CMCoPilot() {
 
   // Voice support detection
   useEffect(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    setVoiceSupported(!!SR);
+    setVoiceSupported(false);
   }, []);
   const startVoice = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
