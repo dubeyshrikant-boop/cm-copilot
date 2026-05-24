@@ -1,0 +1,2374 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1E3A5F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CM Co-Pilot">
+  <title>CM Co-Pilot · Vande Intelligence Engine</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23C2410C'/><text x='50' y='72' font-size='60' text-anchor='middle' fill='white' font-family='serif'>व</text></svg>">
+  <style>
+    body { margin: 0; background: #FAFAF7; -webkit-font-smoothing: antialiased; }
+    #root { min-height: 100vh; }
+    .boot-screen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; background: #FAFAF7;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #5C5852; gap: 14px;
+    }
+    .boot-screen .logo {
+      width: 48px; height: 48px;
+      background: #C2410C; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 28px; font-weight: 600;
+    }
+    .boot-screen .text { font-size: 14px; letter-spacing: 0.04em; }
+    .boot-screen .dots::after { content: ''; animation: dots 1.4s infinite; }
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="boot-screen">
+      <div class="logo">व</div>
+      <div class="text">Vande Intelligence Engine</div>
+      <div class="text dots" style="font-size: 11px; color: #94918A;">Loading</div>
+    </div>
+  </div>
+
+  <script type="module">
+import React, { useState, useRef, useEffect } from 'https://esm.sh/react@18.3.1';
+import { Quote, Shield, Search, Briefcase, MapPin, Loader2, Send, Copy, Check, RotateCcw, AlertCircle, Sparkles, TrendingUp, Users, Target, Zap, ScrollText, Printer, Lightbulb, Megaphone, Compass, GitBranch, Mic, MicOff, Share2, Download, Languages } from 'https://esm.sh/lucide-react@0.439.0';
+import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
+const WORKER_URL = "https://cm-copilot.dubey-shrikant.workers.dev";
+
+/* ──────────────────────────────────────────────────────────────────────
+   MODE CONFIGS
+   ────────────────────────────────────────────────────────────────────── */
+const MODES = {
+  speech: {
+    label: 'Speech Stats',
+    labelMr: 'भाषण आकडेवारी',
+    icon: Quote,
+    accent: '#B7791F',
+    accentSoft: '#FEF3C7',
+    description: 'Statistics, comparisons and quotable lines for any topic',
+    placeholder: 'Enter speech topic — e.g., "Maharashtra agriculture growth"',
+    examples: ['Maharashtra agriculture and farmer welfare FY2020–FY2025', 'Mumbai and MMR infrastructure investment record', 'Maharashtra women empowerment schemes impact', 'Maharashtra industrial investment and FDI'],
+    systemPrompt: `You are senior policy researcher preparing speech material for Chief Minister of Maharashtra.
+For the topic, generate a comprehensive analytical brief.
+
+Output STRICTLY as valid JSON, no markdown, no commentary:
+{
+  "headline": "one-line framing of topic for CM speech",
+  "stats": [
+    { "fact": "specific stat with number/figure", "context": "what it signifies", "confidence": "verified|approximate|needs_verification" }
+  ],
+  "comparisons": [
+    { "state": "state name", "metric": "metric", "comparison": "how Maharashtra compares" }
+  ],
+  "quotes": {
+    "english": "powerful 1-line quote",
+    "marathi": "powerful 1-line quote in Marathi Devanagari script",
+    "hindi": "powerful 1-line quote in Hindi Devanagari script"
+  },
+  "policy_implications": "what these numbers mean for policy direction (2-3 lines)",
+  "speech_angle": "suggested narrative arc and tone (2 lines)",
+  "caveat": "what staff should verify before public use"
+}
+
+CRITICAL: Provide EXACTLY 5 stats and EXACTLY 3 state comparisons.`
+  },
+  counter: {
+    label: 'Counter-Narrative',
+    labelMr: 'प्रति-कथन',
+    icon: Shield,
+    accent: '#C2410C',
+    accentSoft: '#FFEDD5',
+    description: 'Strategic rebuttals to opposition statements',
+    placeholder: 'Paste opposition statement here',
+    examples: ['Uddhav Thackeray ने कहा कि शिंदे सरकार ने मराठी अस्मिता को कमज़ोर किया है', 'Sharad Pawar said Maharashtra economy is in decline under BJP rule', 'Rahul Gandhi alleged EVMs were tampered in Maharashtra elections', 'Opposition claims farmer suicides have risen in Vidarbha'],
+    systemPrompt: `You are senior political strategist for BJP Maharashtra. User pastes opposition statement.
+
+Output STRICTLY as valid JSON, no markdown:
+{
+  "attack_analysis": {
+    "core_attack": "what is the underlying attack",
+    "target_audience": "which voter segment is being addressed",
+    "emotional_lever": "what emotion is being exploited",
+    "credibility_score": "low|medium|high"
+  },
+  "supporting_facts": ["fact 1", "fact 2", "fact 3", "fact 4"],
+  "counters": [
+    { "tone": "factual", "narrative": "2-3 line data-driven counter", "spokesperson": "name/role", "channel": "press|social|rally" },
+    { "tone": "emotional", "narrative": "2-3 line values-based counter", "spokesperson": "name/role", "channel": "press|social|rally" },
+    { "tone": "statesman", "narrative": "2-3 line high-road counter", "spokesperson": "CM or senior leader", "channel": "press|social|rally" }
+  ],
+  "avoid": ["avoid 1", "avoid 2", "avoid 3"],
+  "marathi_punchline": "one sharp Marathi line in Devanagari"
+}
+
+CRITICAL: EXACTLY 4 supporting facts, 3 counters, 3 avoids.`
+  },
+  gr: {
+    label: 'GR / Policy',
+    labelMr: 'शासन निर्णय',
+    icon: Search,
+    accent: '#4338CA',
+    accentSoft: '#E0E7FF',
+    description: 'Comprehensive policy analysis: fiscal, stakeholder, comparable states',
+    placeholder: 'Enter GR or policy topic',
+    examples: ['Mukhyamantri Majhi Ladki Bahin Yojana for women', 'MSME credit guarantee and subsidy scheme', 'OBC scholarship and educational support scheme', 'Maharashtra cooperative society digitisation policy'],
+    systemPrompt: `You are experienced Maharashtra policy analyst. Generate comprehensive brief.
+Be honest this is analytical framework, NOT live database lookup.
+
+Output STRICTLY as valid JSON, no markdown:
+{
+  "policy_name": "likely scheme/policy name",
+  "issuing_dept": "likely issuing department",
+  "background": "policy context and rationale (3 lines)",
+  "key_provisions": ["1","2","3","4","5"],
+  "fiscal_impact": { "category": "low|medium|high", "reasoning": "why" },
+  "implementation_status": "typical implementation reality (3 lines)",
+  "comparable_states": [
+    { "state": "state", "scheme": "scheme name", "learning": "what MH can learn" }
+  ],
+  "stakeholders": ["s1","s2","s3","s4","s5"],
+  "risks": ["r1","r2","r3","r4"],
+  "political_opportunity": "how to frame as BJP-led achievement (2 lines)",
+  "human_verification_needed": "what officer must verify"
+}
+
+CRITICAL: EXACTLY 5 provisions, 3 states, 5 stakeholders, 4 risks.`
+  },
+  cabinet: {
+    label: 'Cabinet Brief',
+    labelMr: 'मंत्रिमंडळ टिप्पणी',
+    icon: Briefcase,
+    accent: '#1E3A5F',
+    accentSoft: '#DBEAFE',
+    description: 'One-page brief: fiscal, political, alternatives, recommendation',
+    placeholder: 'Enter cabinet agenda item',
+    examples: ['Free bus travel for women across Maharashtra', 'Loan waiver for farmers up to Rs 2 lakh', 'Reservation increase for Maratha community', 'Free electricity up to 100 units for households'],
+    systemPrompt: `You are senior cabinet secretariat officer preparing 1-page brief for CM.
+
+Output STRICTLY as valid JSON, no markdown:
+{
+  "agenda_item": "restated clearly",
+  "summary": "2-line description",
+  "fiscal_cost": {
+    "category": "low (under 100cr) | medium (100-1000cr) | high (above 1000cr)",
+    "annual_estimate": "estimate with reasoning",
+    "funding_source": "source",
+    "five_year_outlay": "5-year cost"
+  },
+  "precedents": [
+    { "where": "state/UT", "year": "year", "outcome": "outcome" }
+  ],
+  "stakeholder_impact": {
+    "beneficiaries": "who gains",
+    "burden_bearers": "who pays/loses",
+    "voter_segments": "key voter groups"
+  },
+  "alternatives": ["option 1 with rationale", "option 2 with rationale"],
+  "opposition_stance": "how MVA/Cong/NCP-SP will frame this",
+  "political_calculus": "net political impact (3 lines)",
+  "recommendation": {
+    "lean": "proceed|proceed_with_modifications|defer|reject",
+    "reasoning": "why (2 lines)",
+    "key_safeguards": ["s1","s2","s3"]
+  }
+}
+
+CRITICAL: EXACTLY 3 precedents, 2 alternatives, 3 safeguards.`
+  },
+  sentiment: {
+    label: 'Sentiment Scan',
+    labelMr: 'जनभावना सर्वेक्षण',
+    icon: MapPin,
+    accent: '#047857',
+    accentSoft: '#D1FAE5',
+    description: 'Regional issues, vulnerabilities, 30-day action plan',
+    placeholder: 'Enter district / constituency / region',
+    examples: ['Nagpur South West constituency', 'Vidarbha region — overall sentiment', 'Marathwada — drought and Maratha reservation', 'Mumbai city — urban issues'],
+    systemPrompt: `You are senior political intelligence officer reporting to CM. Generate analytical scan.
+Be honest this is pattern-based regional analysis, NOT live polling.
+
+Output STRICTLY as valid JSON, no markdown:
+{
+  "region": "restated region",
+  "demographic_snapshot": "demographic/political character (2-3 lines)",
+  "top_issues": [
+    { "issue": "issue", "intensity": "low|medium|high", "driver": "driver" }
+  ],
+  "opposition_play": "how opposition is framing region (2 lines)",
+  "bjp_strengths": ["s1","s2","s3"],
+  "bjp_vulnerabilities": ["v1","v2","v3"],
+  "messaging_framework": ["theme 1","theme 2","theme 3"],
+  "thirty_day_actions": [
+    { "action": "action", "owner": "who", "impact": "expected impact" }
+  ],
+  "caveat": "what requires ground verification"
+}
+
+CRITICAL: EXACTLY 5 issues, 3 strengths, 3 vulnerabilities, 3 messaging themes, 4 actions.`
+  }
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+   UI STRINGS (English / Marathi toggle)
+   ────────────────────────────────────────────────────────────────────── */
+const UI = {
+  en: {
+    subtitle: "Custom-built advisory engine for the Chief Minister of Maharashtra. Five modes that compress hours of staff-work into seconds.",
+    examples: 'EXAMPLE INPUTS',
+    runHint: 'Ctrl/⌘ + Enter to run',
+    engine: 'Vande Intelligence Engine',
+    generate: 'Generate Brief',
+    processing: 'Processing…',
+    reset: 'Reset',
+    print: 'Print',
+    copy: 'Copy',
+    copied: 'Copied',
+    share: 'WhatsApp',
+    download: 'Save',
+    voiceStart: 'Tap to speak',
+    voiceStop: 'Listening…',
+    loading: 'Engine processing brief…',
+    loadingHint: 'Typically takes 15–25 seconds',
+    builtBy: 'Designed and developed by',
+    role: 'BJP Mahamantri, Nagpur',
+    brief: 'Brief',
+    briefs: 'BRIEFS THIS SESSION',
+    liveLabel: 'ENGINE LIVE',
+    confidential: "CONFIDENTIAL · FOR HON'BLE CM'S OFFICE",
+    govStrip: 'GOVERNMENT OF MAHARASHTRA · ADVISORY TOOL',
+    analyticalBrief: 'Analytical Brief'
+  },
+  mr: {
+    subtitle: "महाराष्ट्राच्या मा. मुख्यमंत्र्यांसाठी विशेष विकसित सल्लागार इंजिन. पाच विभाग जे कर्मचाऱ्यांच्या तासांचे काम क्षणात पूर्ण करतात.",
+    examples: 'उदाहरण प्रश्न',
+    runHint: 'चालवण्यासाठी Ctrl/⌘ + Enter',
+    engine: 'वंदे इंटेलिजन्स इंजिन',
+    generate: 'अहवाल तयार करा',
+    processing: 'प्रक्रिया सुरू…',
+    reset: 'रीसेट',
+    print: 'प्रिंट',
+    copy: 'कॉपी',
+    copied: 'कॉपी झाले',
+    share: 'व्हॉट्सॲप',
+    download: 'जतन',
+    voiceStart: 'बोला',
+    voiceStop: 'ऐकत आहे…',
+    loading: 'इंजिन अहवाल तयार करत आहे…',
+    loadingHint: 'साधारणपणे १५-२५ सेकंद लागतात',
+    builtBy: 'डिझाइन व विकास',
+    role: 'भाजपा महामंत्री, नागपूर',
+    brief: 'अहवाल',
+    briefs: 'अहवाल या सत्रात',
+    liveLabel: 'इंजिन सुरू',
+    confidential: 'गोपनीय · मा. मुख्यमंत्री कार्यालयासाठी',
+    govStrip: 'महाराष्ट्र शासन · सल्लागार साधन',
+    analyticalBrief: 'विश्लेषणात्मक अहवाल'
+  }
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+   THEME
+   ────────────────────────────────────────────────────────────────────── */
+const T = {
+  bg: '#FAFAF7',
+  bgCard: '#FFFFFF',
+  border: '#E8E4DC',
+  borderSoft: '#F0EDE5',
+  text: '#1A1A1A',
+  textSub: '#5C5852',
+  textMute: '#94918A',
+  saffron: '#C2410C',
+  navy: '#1E3A5F',
+  success: '#166534',
+  warn: '#B45309',
+  danger: '#B91C1C'
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+   ENGINE CALL
+   ────────────────────────────────────────────────────────────────────── */
+// Repair a truncated/malformed JSON string: closes open strings + brackets,
+// strips dangling keys, removes trailing commas.
+const repairJSON = s => {
+  let fixed = s;
+  const stack = [];
+  let inStr = false,
+    escape = false;
+  for (let i = 0; i < fixed.length; i++) {
+    const ch = fixed[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = !inStr;
+      continue;
+    }
+    if (inStr) continue;
+    if (ch === '{') stack.push('}');else if (ch === '[') stack.push(']');else if (ch === '}' || ch === ']') stack.pop();
+  }
+  if (inStr) fixed += '"';
+  // Strip dangling: trailing key with no value
+  fixed = fixed.replace(/,?\s*"[^"]*"\s*:\s*$/, '');
+  // Strip dangling: trailing colon
+  fixed = fixed.replace(/:\s*$/, '');
+  // Strip trailing comma
+  fixed = fixed.replace(/,\s*$/, '');
+  // Close all open structures
+  while (stack.length) fixed += stack.pop();
+  // Remove trailing commas before closures
+  fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+  return fixed;
+};
+const parseEngineJSON = text => {
+  let clean = text.replace(/```json\s*|\s*```/g, '').trim();
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if (start !== -1 && end > start) clean = clean.substring(start, end + 1);else if (start !== -1) clean = clean.substring(start);
+
+  // Attempt 1: direct parse
+  try {
+    return JSON.parse(clean);
+  } catch (e) {}
+
+  // Attempt 2: strip trailing commas
+  try {
+    return JSON.parse(clean.replace(/,(\s*[}\]])/g, '$1'));
+  } catch (e) {}
+
+  // Attempt 3: full repair (handles truncation)
+  try {
+    return JSON.parse(repairJSON(clean));
+  } catch (e) {
+    throw new Error('Brief was incomplete — please retry');
+  }
+};
+const buildLangDirective = lang => {
+  if (lang !== 'mr') return '';
+  return `LANGUAGE OUTPUT RULES (CRITICAL — applies to entire response):
+- ALL content values MUST be in Marathi using Devanagari script
+- JSON keys stay in English exactly as specified in the schema
+- State names (e.g., Karnataka, Tamil Nadu), numerical figures, percentages, years stay as-is
+- Status enum values stay English: low|medium|high, proceed|defer|reject|proceed_with_modifications, factual|emotional|statesman, press|social|rally, verified|approximate|needs_verification
+- The 'english' quote field stays in English; 'marathi' uses Devanagari Marathi; 'hindi' uses Devanagari Hindi
+- Write Marathi in a natural, formal style appropriate for the CM's office — not direct translation from English
+
+`;
+};
+const callEngine = async (systemPrompt, userInput, lang = 'mr') => {
+  const langDirective = buildLangDirective(lang);
+  const response = await fetch(WORKER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      messages: [{
+        role: "user",
+        content: `${langDirective}${systemPrompt}\n\n--- INPUT ---\n${userInput}`
+      }]
+    })
+  });
+  if (!response.ok) throw new Error(`Engine error ${response.status}`);
+  const data = await response.json();
+  const text = data.content.filter(i => i.type === 'text').map(i => i.text).join('\n');
+  return parseEngineJSON(text);
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+   WHATSAPP FORMATTER  —  plain text with emojis
+   ────────────────────────────────────────────────────────────────────── */
+const formatForWhatsApp = (modeKey, data, modeLabel, timestamp) => {
+  const head = `📋 *${modeLabel.toUpperCase()} BRIEF*\n🕒 ${timestamp}\n\n`;
+  let body = '';
+  if (modeKey === 'speech') {
+    body += `*${data.headline}*\n\n`;
+    body += `📊 *KEY STATISTICS*\n`;
+    data.stats?.forEach((s, i) => {
+      body += `${i + 1}. ${s.fact}\n   _${s.context}_\n`;
+    });
+    body += `\n🌏 *STATE COMPARISONS*\n`;
+    data.comparisons?.forEach(c => {
+      body += `▪ *${c.state}* — ${c.comparison}\n`;
+    });
+    body += `\n💬 *QUOTABLE LINES*\n`;
+    if (data.quotes?.english) body += `🇮🇳 EN: _${data.quotes.english}_\n`;
+    if (data.quotes?.marathi) body += `मराठी: _${data.quotes.marathi}_\n`;
+    if (data.quotes?.hindi) body += `हिंदी: _${data.quotes.hindi}_\n`;
+    if (data.speech_angle) body += `\n🎯 *ANGLE*\n${data.speech_angle}\n`;
+    if (data.caveat) body += `\n⚠️ _${data.caveat}_\n`;
+  } else if (modeKey === 'counter') {
+    body += `🎯 *ATTACK ANALYSIS*\n`;
+    if (data.attack_analysis) {
+      body += `Core: ${data.attack_analysis.core_attack}\n`;
+      body += `Target: ${data.attack_analysis.target_audience}\n`;
+      body += `Lever: ${data.attack_analysis.emotional_lever}\n`;
+    }
+    body += `\n📊 *SUPPORTING FACTS*\n`;
+    data.supporting_facts?.forEach((f, i) => {
+      body += `${i + 1}. ${f}\n`;
+    });
+    body += `\n🛡️ *COUNTER-NARRATIVES*\n`;
+    data.counters?.forEach(c => {
+      body += `\n*${c.tone.toUpperCase()}* (${c.spokesperson}, ${c.channel}):\n${c.narrative}\n`;
+    });
+    if (data.marathi_punchline) body += `\n⚡ *MARATHI PUNCHLINE*\n_${data.marathi_punchline}_\n`;
+    if (data.avoid?.length) {
+      body += `\n🚫 *AVOID SAYING*\n`;
+      data.avoid.forEach(a => body += `▪ ${a}\n`);
+    }
+  } else if (modeKey === 'gr') {
+    body += `*${data.policy_name}*\nDept: ${data.issuing_dept}\n\n`;
+    body += `📝 *BACKGROUND*\n${data.background}\n\n`;
+    body += `📜 *KEY PROVISIONS*\n`;
+    data.key_provisions?.forEach((p, i) => {
+      body += `${i + 1}. ${p}\n`;
+    });
+    if (data.fiscal_impact) body += `\n💰 *FISCAL IMPACT*: ${data.fiscal_impact.category.toUpperCase()}\n${data.fiscal_impact.reasoning}\n`;
+    body += `\n👥 *STAKEHOLDERS*: ${data.stakeholders?.join(', ')}\n`;
+    if (data.risks?.length) {
+      body += `\n⚠️ *RISKS*\n`;
+      data.risks.forEach(r => body += `▪ ${r}\n`);
+    }
+    if (data.political_opportunity) body += `\n🌟 *POLITICAL OPPORTUNITY*\n${data.political_opportunity}\n`;
+  } else if (modeKey === 'cabinet') {
+    body += `*${data.agenda_item}*\n${data.summary}\n\n`;
+    if (data.fiscal_cost) {
+      body += `💰 *FISCAL*: ${data.fiscal_cost.category.toUpperCase()}\n`;
+      body += `Annual: ${data.fiscal_cost.annual_estimate}\n`;
+      body += `5-year: ${data.fiscal_cost.five_year_outlay}\n`;
+      body += `Source: ${data.fiscal_cost.funding_source}\n`;
+    }
+    if (data.stakeholder_impact) {
+      body += `\n✅ *GAINS*: ${data.stakeholder_impact.beneficiaries}\n`;
+      body += `❌ *LOSES*: ${data.stakeholder_impact.burden_bearers}\n`;
+      body += `🗳️ *VOTERS*: ${data.stakeholder_impact.voter_segments}\n`;
+    }
+    if (data.opposition_stance) body += `\n🛡️ *OPPOSITION*: ${data.opposition_stance}\n`;
+    if (data.political_calculus) body += `\n⚖️ *CALCULUS*: ${data.political_calculus}\n`;
+    if (data.recommendation) {
+      body += `\n📌 *RECOMMENDATION*: ${data.recommendation.lean.replace(/_/g, ' ').toUpperCase()}\n${data.recommendation.reasoning}\n`;
+    }
+  } else if (modeKey === 'sentiment') {
+    body += `📍 *${data.region}*\n${data.demographic_snapshot}\n\n`;
+    body += `🔥 *TOP ISSUES*\n`;
+    data.top_issues?.forEach(it => {
+      body += `▪ [${it.intensity.toUpperCase()}] *${it.issue}* — ${it.driver}\n`;
+    });
+    if (data.opposition_play) body += `\n🛡️ *OPPOSITION PLAY*\n${data.opposition_play}\n`;
+    if (data.bjp_strengths?.length) {
+      body += `\n✅ *BJP STRENGTHS*\n`;
+      data.bjp_strengths.forEach(s => body += `▪ ${s}\n`);
+    }
+    if (data.bjp_vulnerabilities?.length) {
+      body += `\n⚠️ *VULNERABILITIES*\n`;
+      data.bjp_vulnerabilities.forEach(s => body += `▪ ${s}\n`);
+    }
+    if (data.messaging_framework?.length) {
+      body += `\n📣 *MESSAGING*\n`;
+      data.messaging_framework.forEach(m => body += `▪ ${m}\n`);
+    }
+    if (data.thirty_day_actions?.length) {
+      body += `\n🎯 *30-DAY ACTIONS*\n`;
+      data.thirty_day_actions.forEach((a, i) => {
+        body += `${i + 1}. ${a.action} (Owner: ${a.owner})\n`;
+      });
+    }
+  }
+  return head + body + `\n\n— _Vande Intelligence Engine_\n_CA Shrikant Dubey · BJP Nagpur_`;
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+   ATOMS
+   ────────────────────────────────────────────────────────────────────── */
+const ConfidenceBadge = ({
+  level
+}) => {
+  const map = {
+    verified: {
+      bg: '#DCFCE7',
+      fg: '#166534',
+      label: 'Verified'
+    },
+    approximate: {
+      bg: '#FEF3C7',
+      fg: '#92400E',
+      label: 'Approximate'
+    },
+    needs_verification: {
+      bg: '#FEE2E2',
+      fg: '#B91C1C',
+      label: 'Verify'
+    }
+  };
+  const s = map[level] || map.needs_verification;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: s.bg,
+      color: s.fg,
+      fontSize: '10px',
+      fontWeight: 700,
+      letterSpacing: '0.06em',
+      padding: '3px 8px',
+      borderRadius: '4px',
+      textTransform: 'uppercase',
+      whiteSpace: 'nowrap'
+    }
+  }, s.label);
+};
+const IntensityBadge = ({
+  level
+}) => {
+  const map = {
+    low: {
+      fg: T.success,
+      bg: '#DCFCE7',
+      label: 'LOW'
+    },
+    medium: {
+      fg: T.warn,
+      bg: '#FEF3C7',
+      label: 'MEDIUM'
+    },
+    high: {
+      fg: T.danger,
+      bg: '#FEE2E2',
+      label: 'HIGH'
+    }
+  };
+  const s = map[level] || map.medium;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      background: s.bg,
+      color: s.fg,
+      fontSize: '10px',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      padding: '3px 8px',
+      borderRadius: '4px'
+    }
+  }, s.label);
+};
+const CredibilityBadge = ({
+  level
+}) => {
+  const map = {
+    low: {
+      fg: T.success,
+      label: '◔ Low Threat'
+    },
+    medium: {
+      fg: T.warn,
+      label: '◑ Medium Threat'
+    },
+    high: {
+      fg: T.danger,
+      label: '● High Threat'
+    }
+  };
+  const s = map[level] || map.medium;
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: s.fg,
+      fontSize: '11px',
+      fontWeight: 700
+    }
+  }, s.label);
+};
+const SectionLabel = ({
+  icon: Icon,
+  children,
+  accent
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '10px',
+    marginTop: '22px',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.14em',
+    textTransform: 'uppercase',
+    color: accent || T.textSub
+  }
+}, Icon && /*#__PURE__*/React.createElement(Icon, {
+  size: 12,
+  strokeWidth: 2.5
+}), children);
+const Pill = ({
+  children
+}) => /*#__PURE__*/React.createElement("span", {
+  style: {
+    display: 'inline-block',
+    background: '#F5F2EA',
+    border: `1px solid ${T.border}`,
+    color: T.text,
+    fontSize: '12px',
+    padding: '4px 10px',
+    borderRadius: '999px',
+    marginRight: '6px',
+    marginBottom: '6px'
+  }
+}, children);
+const Card = ({
+  children,
+  style = {}
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderRadius: '8px',
+    padding: '14px 16px',
+    marginBottom: '8px',
+    ...style
+  }
+}, children);
+
+/* ──────────────────────────────────────────────────────────────────────
+   RENDERERS  (same as before)
+   ────────────────────────────────────────────────────────────────────── */
+const SpeechOutput = ({
+  data,
+  accent
+}) => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '20px',
+    fontFamily: '"IBM Plex Serif", "Arial Unicode MS", Georgia, serif',
+    fontWeight: 500,
+    color: T.text,
+    marginBottom: '4px',
+    lineHeight: 1.3,
+    letterSpacing: '-0.01em'
+  }
+}, data.headline), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: TrendingUp,
+  accent: accent
+}, "Key Statistics"), data.stats?.map((s, i) => /*#__PURE__*/React.createElement(Card, {
+  key: i,
+  style: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '12px',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    flex: 1,
+    minWidth: '200px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '14px',
+    fontWeight: 500,
+    marginBottom: '3px'
+  }
+}, s.fact), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px'
+  }
+}, s.context)), /*#__PURE__*/React.createElement(ConfidenceBadge, {
+  level: s.confidence
+}))), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Users,
+  accent: accent
+}, "State Comparisons"), data.comparisons?.map((c, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '10px 14px',
+    marginBottom: '6px',
+    background: T.bgCard,
+    borderRadius: '6px',
+    borderLeft: `3px solid ${accent}`,
+    border: `1px solid ${T.border}`
+  }
+}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontWeight: 700,
+    fontSize: '13px'
+  }
+}, c.state), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textMute,
+    fontSize: '12px',
+    margin: '0 8px'
+  }
+}, "\xB7"), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px'
+  }
+}, c.metric)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    marginTop: '4px'
+  }
+}, c.comparison))), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Quote,
+  accent: accent
+}, "Quotable Lines"), data.quotes && Object.entries(data.quotes).map(([lang, q]) => /*#__PURE__*/React.createElement("div", {
+  key: lang,
+  style: {
+    padding: '14px 16px',
+    marginBottom: '8px',
+    background: '#FDFBF5',
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: '6px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.18em',
+    color: accent,
+    marginBottom: '6px',
+    textTransform: 'uppercase'
+  }
+}, lang), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '15px',
+    fontFamily: lang === 'marathi' || lang === 'hindi' ? '"Arial Unicode MS", sans-serif' : '"IBM Plex Serif", "Arial Unicode MS", Georgia, serif',
+    fontStyle: lang === 'english' ? 'italic' : 'normal',
+    lineHeight: 1.5
+  }
+}, "\"", q, "\""))), data.policy_implications && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Compass,
+  accent: accent
+}, "Policy Implications"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '14px',
+    background: '#FDFBF5',
+    border: `1px solid ${T.border}`,
+    borderRadius: '6px',
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.policy_implications)), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Target,
+  accent: accent
+}, "Speech Angle"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.speech_angle), data.caveat && /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginTop: '22px',
+    padding: '12px 14px',
+    background: '#FEF3C7',
+    borderLeft: `3px solid ${T.warn}`,
+    borderRadius: '4px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.14em',
+    color: T.warn,
+    marginBottom: '4px'
+  }
+}, "VERIFICATION NEEDED"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: '#78350F',
+    fontSize: '12px'
+  }
+}, data.caveat)));
+const CounterOutput = ({
+  data,
+  accent
+}) => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Target,
+  accent: accent
+}, "Attack Analysis"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '10px',
+    flexWrap: 'wrap',
+    gap: '8px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '11px',
+    color: T.textSub,
+    fontWeight: 600,
+    letterSpacing: '0.08em'
+  }
+}, "THREAT ASSESSMENT"), data.attack_analysis?.credibility_score && /*#__PURE__*/React.createElement(CredibilityBadge, {
+  level: data.attack_analysis.credibility_score
+})), /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: '8px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.12em'
+  }
+}, "CORE ATTACK \xB7 "), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.text,
+    fontSize: '13px'
+  }
+}, data.attack_analysis?.core_attack)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: '8px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.12em'
+  }
+}, "TARGET \xB7 "), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.text,
+    fontSize: '13px'
+  }
+}, data.attack_analysis?.target_audience)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.12em'
+  }
+}, "EMOTIONAL LEVER \xB7 "), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.text,
+    fontSize: '13px'
+  }
+}, data.attack_analysis?.emotional_lever))), data.supporting_facts?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: TrendingUp,
+  accent: accent
+}, "Supporting Facts (For Counter)"), data.supporting_facts.map((f, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '10px 14px',
+    marginBottom: '6px',
+    background: '#DCFCE7',
+    borderLeft: `3px solid ${T.success}`,
+    borderRadius: '4px',
+    color: '#14532D',
+    fontSize: '13px',
+    lineHeight: 1.5
+  }
+}, f))), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Shield,
+  accent: accent
+}, "Counter-Narratives"), data.counters?.map((c, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '14px 16px',
+    marginBottom: '10px',
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: '6px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '8px',
+    flexWrap: 'wrap',
+    gap: '6px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.18em',
+    color: accent,
+    textTransform: 'uppercase',
+    padding: '3px 8px',
+    background: '#FFEDD5',
+    borderRadius: '4px'
+  }
+}, c.tone), /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: 'flex',
+    gap: '6px',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '11px',
+    color: T.textSub,
+    fontWeight: 500
+  }
+}, c.spokesperson), /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '11px',
+    color: T.textMute
+  }
+}, "\xB7"), /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '11px',
+    color: T.textMute,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em'
+  }
+}, c.channel))), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '14px',
+    lineHeight: 1.55
+  }
+}, c.narrative))), data.marathi_punchline && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Zap,
+  accent: accent
+}, "Marathi Punchline"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '16px 18px',
+    background: '#FFF7ED',
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: '6px',
+    fontFamily: '"Arial Unicode MS", sans-serif',
+    fontSize: '17px',
+    color: T.text,
+    lineHeight: 1.5
+  }
+}, "\"", data.marathi_punchline, "\"")), data.avoid?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: AlertCircle,
+  accent: T.danger
+}, "Avoid Saying"), data.avoid.map((a, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '8px 12px',
+    marginBottom: '6px',
+    background: '#FEE2E2',
+    borderLeft: `3px solid ${T.danger}`,
+    color: '#7F1D1D',
+    fontSize: '12px',
+    borderRadius: '4px'
+  }
+}, a))));
+const GROutput = ({
+  data,
+  accent
+}) => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '20px',
+    fontFamily: '"IBM Plex Serif", "Arial Unicode MS", Georgia, serif',
+    fontWeight: 500,
+    color: T.text,
+    marginBottom: '4px',
+    letterSpacing: '-0.01em'
+  }
+}, data.policy_name), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px',
+    marginBottom: '10px'
+  }
+}, "Likely issuing department: ", /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontWeight: 600
+  }
+}, data.issuing_dept)), /*#__PURE__*/React.createElement(SectionLabel, {
+  accent: accent
+}, "Background"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.background), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: ScrollText,
+  accent: accent
+}, "Key Provisions"), data.key_provisions?.map((p, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '10px 14px',
+    marginBottom: '6px',
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderRadius: '6px',
+    color: T.text,
+    fontSize: '13px',
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'flex-start'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    minWidth: '20px',
+    height: '20px',
+    background: '#E0E7FF',
+    color: accent,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 700,
+    flexShrink: 0
+  }
+}, i + 1), /*#__PURE__*/React.createElement("span", {
+  style: {
+    lineHeight: 1.5
+  }
+}, p))), data.fiscal_impact && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: TrendingUp,
+  accent: accent
+}, "Fiscal Impact"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: '6px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.14em',
+    padding: '3px 8px',
+    borderRadius: '4px',
+    background: '#E0E7FF',
+    color: accent,
+    textTransform: 'uppercase'
+  }
+}, data.fiscal_impact.category)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px',
+    lineHeight: 1.5
+  }
+}, data.fiscal_impact.reasoning))), /*#__PURE__*/React.createElement(SectionLabel, {
+  accent: accent
+}, "Implementation Reality"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.implementation_status), data.comparable_states?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Users,
+  accent: accent
+}, "Lessons From Other States"), data.comparable_states.map((s, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '10px 14px',
+    marginBottom: '6px',
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: '6px'
+  }
+}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontWeight: 700,
+    fontSize: '13px'
+  }
+}, s.state), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textMute,
+    fontSize: '12px',
+    margin: '0 6px'
+  }
+}, "\xB7"), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.text,
+    fontSize: '12px',
+    fontWeight: 500
+  }
+}, s.scheme)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px',
+    marginTop: '4px'
+  }
+}, s.learning)))), /*#__PURE__*/React.createElement(SectionLabel, {
+  accent: accent
+}, "Stakeholders"), /*#__PURE__*/React.createElement("div", null, data.stakeholders?.map((s, i) => /*#__PURE__*/React.createElement(Pill, {
+  key: i
+}, s))), data.risks?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: AlertCircle,
+  accent: T.warn
+}, "Risks"), data.risks.map((r, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '8px 12px',
+    marginBottom: '6px',
+    background: '#FEF3C7',
+    borderLeft: `3px solid ${T.warn}`,
+    color: '#78350F',
+    fontSize: '12px',
+    borderRadius: '4px'
+  }
+}, r))), data.political_opportunity && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Megaphone,
+  accent: accent
+}, "Political Opportunity"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '14px',
+    background: '#FFEDD5',
+    borderLeft: `3px solid ${T.saffron}`,
+    borderRadius: '4px',
+    color: '#7C2D12',
+    fontSize: '13px',
+    lineHeight: 1.6,
+    fontWeight: 500
+  }
+}, data.political_opportunity)), data.human_verification_needed && /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginTop: '20px',
+    padding: '12px 14px',
+    background: '#DBEAFE',
+    borderLeft: `3px solid ${T.navy}`,
+    borderRadius: '4px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.14em',
+    color: T.navy,
+    marginBottom: '4px'
+  }
+}, "OFFICER VERIFICATION"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: '#1E3A5F',
+    fontSize: '12px'
+  }
+}, data.human_verification_needed)));
+const CabinetOutput = ({
+  data,
+  accent
+}) => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '20px',
+    fontFamily: '"IBM Plex Serif", "Arial Unicode MS", Georgia, serif',
+    fontWeight: 500,
+    color: T.text,
+    marginBottom: '6px',
+    lineHeight: 1.3
+  }
+}, data.agenda_item), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '13px',
+    marginBottom: '10px',
+    lineHeight: 1.5
+  }
+}, data.summary), data.fiscal_cost && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: TrendingUp,
+  accent: accent
+}, "Fiscal Cost"), /*#__PURE__*/React.createElement(Card, null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginBottom: '8px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.14em',
+    padding: '3px 8px',
+    borderRadius: '4px',
+    background: '#DBEAFE',
+    color: accent,
+    textTransform: 'uppercase'
+  }
+}, data.fiscal_cost.category)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    marginBottom: '4px',
+    fontWeight: 500
+  }
+}, data.fiscal_cost.annual_estimate), data.fiscal_cost.five_year_outlay && /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px',
+    marginBottom: '4px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    fontWeight: 600
+  }
+}, "5-year outlay: "), data.fiscal_cost.five_year_outlay), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textMute,
+    fontSize: '12px'
+  }
+}, "Funding source: ", data.fiscal_cost.funding_source))), data.precedents?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  accent: accent
+}, "Precedents"), data.precedents.map((p, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '10px 14px',
+    marginBottom: '6px',
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: '6px'
+  }
+}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontWeight: 700,
+    fontSize: '13px'
+  }
+}, p.where), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textMute,
+    fontSize: '12px',
+    margin: '0 6px'
+  }
+}, "\xB7"), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px'
+  }
+}, p.year)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    marginTop: '4px'
+  }
+}, p.outcome)))), data.stakeholder_impact && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Users,
+  accent: accent
+}, "Stakeholder Impact"), /*#__PURE__*/React.createElement("div", {
+  className: "impact-grid",
+  style: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '12px',
+    background: '#DCFCE7',
+    borderRadius: '6px',
+    borderLeft: `3px solid ${T.success}`
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '9px',
+    fontWeight: 800,
+    letterSpacing: '0.16em',
+    color: T.success,
+    marginBottom: '6px'
+  }
+}, "GAINS"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: '#14532D',
+    fontSize: '12px',
+    lineHeight: 1.5
+  }
+}, data.stakeholder_impact.beneficiaries)), /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '12px',
+    background: '#FEF3C7',
+    borderRadius: '6px',
+    borderLeft: `3px solid ${T.warn}`
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '9px',
+    fontWeight: 800,
+    letterSpacing: '0.16em',
+    color: T.warn,
+    marginBottom: '6px'
+  }
+}, "LOSES"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: '#78350F',
+    fontSize: '12px',
+    lineHeight: 1.5
+  }
+}, data.stakeholder_impact.burden_bearers))), /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginTop: '8px',
+    padding: '10px 14px',
+    background: '#F5F2EA',
+    borderRadius: '6px',
+    color: T.text,
+    fontSize: '12px'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontWeight: 700
+  }
+}, "Voter segments: "), data.stakeholder_impact.voter_segments)), data.alternatives?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: GitBranch,
+  accent: accent
+}, "Alternative Options"), data.alternatives.map((alt, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '12px 14px',
+    marginBottom: '6px',
+    background: '#FDFBF5',
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid #92400E`,
+    borderRadius: '6px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.12em',
+    color: '#92400E',
+    marginBottom: '4px'
+  }
+}, "OPTION ", i + 1), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.5
+  }
+}, alt)))), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Shield,
+  accent: accent
+}, "Opposition Stance"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.opposition_stance), /*#__PURE__*/React.createElement(SectionLabel, {
+  accent: accent
+}, "Political Calculus"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.political_calculus), data.recommendation && /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginTop: '24px',
+    padding: '16px 18px',
+    background: '#F0F4F8',
+    border: `2px solid ${accent}`,
+    borderRadius: '8px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.18em',
+    color: accent,
+    marginBottom: '8px',
+    textTransform: 'uppercase'
+  }
+}, "Recommendation \xB7 ", data.recommendation.lean.replace(/_/g, ' ')), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '14px',
+    marginBottom: '10px',
+    lineHeight: 1.5,
+    fontWeight: 500
+  }
+}, data.recommendation.reasoning), data.recommendation.key_safeguards?.length > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    color: T.textSub,
+    marginBottom: '4px',
+    letterSpacing: '0.12em',
+    fontWeight: 600
+  }
+}, "SAFEGUARDS"), data.recommendation.key_safeguards.map((s, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    color: T.textSub,
+    fontSize: '12px',
+    marginBottom: '3px'
+  }
+}, "\xB7 ", s)))));
+const SentimentOutput = ({
+  data,
+  accent
+}) => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '22px',
+    fontFamily: '"IBM Plex Serif", "Arial Unicode MS", Georgia, serif',
+    fontWeight: 500,
+    color: T.text,
+    marginBottom: '6px',
+    letterSpacing: '-0.01em'
+  }
+}, data.region), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '13px',
+    marginBottom: '10px',
+    lineHeight: 1.5
+  }
+}, data.demographic_snapshot), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: AlertCircle,
+  accent: accent
+}, "Top Issues"), data.top_issues?.map((it, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '12px 14px',
+    marginBottom: '8px',
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderRadius: '6px',
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    minWidth: '70px'
+  }
+}, /*#__PURE__*/React.createElement(IntensityBadge, {
+  level: it.intensity
+})), /*#__PURE__*/React.createElement("div", {
+  style: {
+    flex: 1,
+    minWidth: '180px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '14px',
+    fontWeight: 500,
+    marginBottom: '3px'
+  }
+}, it.issue), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.textSub,
+    fontSize: '12px'
+  }
+}, it.driver)))), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Shield,
+  accent: accent
+}, "Opposition Play"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    lineHeight: 1.6
+  }
+}, data.opposition_play), /*#__PURE__*/React.createElement("div", {
+  className: "strength-grid",
+  style: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '12px',
+    marginTop: '22px',
+    marginBottom: '8px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '14px',
+    background: '#DCFCE7',
+    borderRadius: '6px',
+    borderLeft: `3px solid ${T.success}`
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.16em',
+    color: T.success,
+    marginBottom: '8px'
+  }
+}, "BJP STRENGTHS"), data.bjp_strengths?.map((s, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    color: '#14532D',
+    fontSize: '12px',
+    marginBottom: '4px',
+    lineHeight: 1.4
+  }
+}, "\xB7 ", s))), /*#__PURE__*/React.createElement("div", {
+  style: {
+    padding: '14px',
+    background: '#FEF3C7',
+    borderRadius: '6px',
+    borderLeft: `3px solid ${T.warn}`
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.16em',
+    color: T.warn,
+    marginBottom: '8px'
+  }
+}, "VULNERABILITIES"), data.bjp_vulnerabilities?.map((s, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    color: '#78350F',
+    fontSize: '12px',
+    marginBottom: '4px',
+    lineHeight: 1.4
+  }
+}, "\xB7 ", s)))), data.messaging_framework?.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Megaphone,
+  accent: accent
+}, "Messaging Framework"), data.messaging_framework.map((m, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '10px 14px',
+    marginBottom: '6px',
+    background: '#FFEDD5',
+    borderLeft: `3px solid ${T.saffron}`,
+    borderRadius: '4px',
+    color: '#7C2D12',
+    fontSize: '13px',
+    lineHeight: 1.5,
+    fontWeight: 500
+  }
+}, m))), /*#__PURE__*/React.createElement(SectionLabel, {
+  icon: Target,
+  accent: accent
+}, "30-Day Action Plan"), data.thirty_day_actions?.map((a, i) => /*#__PURE__*/React.createElement("div", {
+  key: i,
+  style: {
+    padding: '12px 14px',
+    marginBottom: '8px',
+    background: T.bgCard,
+    border: `1px solid ${T.border}`,
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: '6px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: T.text,
+    fontSize: '13px',
+    fontWeight: 500,
+    marginBottom: '6px'
+  }
+}, a.action), /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: 'flex',
+    gap: '14px',
+    fontSize: '11px',
+    flexWrap: 'wrap'
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textMute
+  }
+}, "Owner: ", /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: accent,
+    fontWeight: 600
+  }
+}, a.owner)), /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.textMute
+  }
+}, "Impact: ", /*#__PURE__*/React.createElement("span", {
+  style: {
+    color: T.text
+  }
+}, a.impact))))), data.caveat && /*#__PURE__*/React.createElement("div", {
+  style: {
+    marginTop: '20px',
+    padding: '12px 14px',
+    background: '#FEF3C7',
+    borderLeft: `3px solid ${T.warn}`,
+    borderRadius: '4px'
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.14em',
+    color: T.warn,
+    marginBottom: '4px'
+  }
+}, "GROUND VERIFICATION"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    color: '#78350F',
+    fontSize: '12px'
+  }
+}, data.caveat)));
+const RENDERERS = {
+  speech: SpeechOutput,
+  counter: CounterOutput,
+  gr: GROutput,
+  cabinet: CabinetOutput,
+  sentiment: SentimentOutput
+};
+
+/* ──────────────────────────────────────────────────────────────────────
+   MAIN
+   ────────────────────────────────────────────────────────────────────── */
+function CMCoPilot() {
+  const [activeMode, setActiveMode] = useState('speech');
+  const [input, setInput] = useState('');
+  const [output, setOutput] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [briefCount, setBriefCount] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [briefTime, setBriefTime] = useState('');
+  const [uiLang, setUiLang] = useState('mr');
+  const [voiceLang, setVoiceLang] = useState('mr-IN');
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef(null);
+  const mode = MODES[activeMode];
+  const Renderer = RENDERERS[activeMode];
+  const t = UI[uiLang];
+
+  // Voice support detection
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setVoiceSupported(!!SR);
+  }, []);
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.lang = voiceLang;
+    r.continuous = false;
+    r.interimResults = false;
+    r.onresult = e => {
+      const transcript = e.results[0][0].transcript;
+      setInput(prev => prev ? prev + ' ' + transcript : transcript);
+      setIsListening(false);
+    };
+    r.onerror = () => setIsListening(false);
+    r.onend = () => setIsListening(false);
+    r.start();
+    recognitionRef.current = r;
+    setIsListening(true);
+  };
+  const stopVoice = () => {
+    if (recognitionRef.current) recognitionRef.current.stop();
+    setIsListening(false);
+  };
+  const handleRun = async () => {
+    if (!input.trim() || loading) return;
+    setLoading(true);
+    setError(null);
+    setOutput(null);
+    const start = Date.now();
+    try {
+      const result = await callEngine(mode.systemPrompt, input, uiLang);
+      setOutput(result);
+      setElapsedSec(Math.round((Date.now() - start) / 1000));
+      setBriefTime(new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }));
+      setBriefCount(c => c + 1);
+    } catch (e) {
+      setError(e.message || 'Engine error — please retry');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleReset = () => {
+    setInput('');
+    setOutput(null);
+    setError(null);
+  };
+  const handleCopy = () => {
+    if (!output) return;
+    const text = formatForWhatsApp(activeMode, output, mode.label, briefTime);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  const handleWhatsApp = () => {
+    if (!output) return;
+    const text = formatForWhatsApp(activeMode, output, mode.label, briefTime);
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+  const handleDownload = () => {
+    if (!output) return;
+    const text = formatForWhatsApp(activeMode, output, mode.label, briefTime);
+    const blob = new Blob([text], {
+      type: 'text/plain;charset=utf-8'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `brief-${activeMode}-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const handlePrint = () => window.print();
+  const useExample = ex => {
+    setInput(ex);
+    setOutput(null);
+    setError(null);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: '100vh',
+      background: T.bg,
+      fontFamily: '"IBM Plex Sans", "Arial Unicode MS", -apple-system, sans-serif',
+      color: T.text
+    }
+  }, /*#__PURE__*/React.createElement("style", null, `
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; }
+        body { margin: 0; background: ${T.bg}; }
+        textarea, input, select { font-family: inherit; }
+        textarea::placeholder, input::placeholder { color: ${T.textMute}; }
+        button { font-family: inherit; cursor: pointer; }
+        @keyframes slide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .output-anim { animation: slide-in 0.3s ease-out; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes pulse-mic {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(185,28,28,0.5); }
+          50% { box-shadow: 0 0 0 10px rgba(185,28,28,0); }
+        }
+        .mic-pulse { animation: pulse-mic 1.2s infinite; }
+        .example-chip:hover { background: #F5F2EA !important; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 32px; }
+        .mode-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 20px; }
+        .impact-grid { grid-template-columns: 1fr 1fr; }
+        .strength-grid { grid-template-columns: 1fr 1fr; }
+        .top-strip-content {
+          max-width: 1100px; margin: 0 auto; padding: 0 32px;
+          display: flex; justify-content: space-between; align-items: center;
+          font-size: 10px; color: #CBD5E1; letter-spacing: 0.1em;
+        }
+        .header-wrap {
+          display: flex; justify-content: space-between; align-items: flex-start;
+          border-bottom: 1px solid ${T.border}; padding-bottom: 20px; margin-bottom: 28px; gap: 16px;
+        }
+        .header-meta { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+        .action-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+        .output-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid ${T.borderSoft}; gap: 12px; flex-wrap: wrap; }
+
+        @media (max-width: 768px) {
+          .container { padding: 16px; }
+          .top-strip-content { padding: 0 16px; font-size: 9px; flex-wrap: wrap; gap: 6px; }
+          .top-strip-content > span:last-child { display: none; }
+          .header-wrap { flex-direction: column; align-items: stretch; padding-bottom: 16px; margin-bottom: 18px; }
+          .header-wrap h1 { font-size: 30px !important; }
+          .header-meta { flex-direction: row; align-items: center; justify-content: space-between; }
+          .mode-tabs {
+            display: flex !important; grid-template-columns: unset;
+            overflow-x: auto; gap: 6px; padding-bottom: 4px;
+            scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+          }
+          .mode-tabs button { min-width: 130px; flex-shrink: 0; padding: 10px !important; }
+          .impact-grid, .strength-grid { grid-template-columns: 1fr !important; }
+          .output-anim { padding: 18px 16px !important; }
+          .action-bar button { padding: 5px 8px !important; font-size: 10px !important; }
+          .examples-wrap { overflow-x: auto; display: flex !important; flex-wrap: nowrap !important; padding-bottom: 4px; }
+          .example-chip { white-space: nowrap; flex-shrink: 0; }
+          .footer { flex-direction: column; align-items: flex-start; gap: 6px; }
+        }
+
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white; }
+        }
+      `), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.navy,
+      padding: '6px 0',
+      borderBottom: `3px solid ${T.saffron}`
+    },
+    className: "no-print"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "top-strip-content"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.govStrip), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.confidential))), /*#__PURE__*/React.createElement("div", {
+    className: "container"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "header-wrap"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      marginBottom: '6px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: '24px',
+      height: '24px',
+      background: T.saffron,
+      borderRadius: '4px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(Sparkles, {
+    size: 14,
+    color: "white"
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      letterSpacing: '0.22em',
+      color: T.saffron,
+      textTransform: 'uppercase'
+    }
+  }, "Prototype \xB7 v2.0")), /*#__PURE__*/React.createElement("h1", {
+    style: {
+      fontFamily: '"IBM Plex Serif", "Arial Unicode MS", Georgia, serif',
+      fontSize: '38px',
+      fontWeight: 500,
+      margin: 0,
+      letterSpacing: '-0.02em',
+      lineHeight: 1.1,
+      color: T.text
+    }
+  }, "CM Co-Pilot"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.textSub,
+      fontSize: '14px',
+      marginTop: '6px',
+      maxWidth: '600px',
+      lineHeight: 1.5,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.subtitle)), /*#__PURE__*/React.createElement("div", {
+    className: "header-meta"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setUiLang(uiLang === 'en' ? 'mr' : 'en'),
+    style: {
+      padding: '6px 10px',
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: '4px',
+      fontSize: '10px',
+      color: T.text,
+      fontWeight: 600,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      letterSpacing: '0.06em'
+    }
+  }, /*#__PURE__*/React.createElement(Languages, {
+    size: 12
+  }), " ", uiLang === 'en' ? 'मराठी' : 'EN'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '6px 10px',
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: '4px',
+      fontSize: '10px',
+      color: T.success,
+      letterSpacing: '0.1em',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontWeight: 600,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: '6px',
+      height: '6px',
+      background: T.success,
+      borderRadius: '50%'
+    }
+  }), t.liveLabel), briefCount > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: T.textMute,
+      letterSpacing: '0.08em',
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, briefCount, " ", t.briefs))), /*#__PURE__*/React.createElement("div", {
+    className: "mode-tabs no-print"
+  }, Object.entries(MODES).map(([key, m]) => {
+    const Icon = m.icon;
+    const isActive = activeMode === key;
+    return /*#__PURE__*/React.createElement("button", {
+      key: key,
+      onClick: () => {
+        setActiveMode(key);
+        setOutput(null);
+        setError(null);
+        setInput('');
+      },
+      style: {
+        padding: '14px 12px',
+        background: isActive ? m.accentSoft : T.bgCard,
+        border: isActive ? `2px solid ${m.accent}` : `1px solid ${T.border}`,
+        borderRadius: '8px',
+        textAlign: 'left',
+        outline: 'none',
+        transition: 'all 0.15s'
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      size: 16,
+      style: {
+        color: isActive ? m.accent : T.textMute,
+        marginBottom: '8px'
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '13px',
+        fontWeight: 600,
+        color: isActive ? m.accent : T.text,
+        marginBottom: '2px',
+        fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+      }
+    }, uiLang === 'mr' ? m.labelMr : m.label), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '11px',
+        fontFamily: '"Arial Unicode MS", sans-serif',
+        color: isActive ? m.accent : T.textMute
+      }
+    }, uiLang === 'mr' ? m.label : m.labelMr));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: '10px',
+      padding: '20px',
+      marginBottom: '16px'
+    },
+    className: "no-print"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+      marginBottom: '12px',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      fontSize: '10px',
+      fontWeight: 700,
+      letterSpacing: '0.16em',
+      color: mode.accent,
+      textTransform: 'uppercase'
+    }
+  }, /*#__PURE__*/React.createElement(mode.icon, {
+    size: 12,
+    strokeWidth: 2.5
+  }), mode.description), voiceSupported && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '6px',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    value: voiceLang,
+    onChange: e => setVoiceLang(e.target.value),
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: '4px',
+      padding: '4px 6px',
+      fontSize: '10px',
+      color: T.textSub
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "en-IN"
+  }, "EN"), /*#__PURE__*/React.createElement("option", {
+    value: "mr-IN"
+  }, "\u092E\u0930\u093E\u0920\u0940"), /*#__PURE__*/React.createElement("option", {
+    value: "hi-IN"
+  }, "\u0939\u093F\u0902\u0926\u0940")), /*#__PURE__*/React.createElement("button", {
+    onClick: isListening ? stopVoice : startVoice,
+    className: isListening ? 'mic-pulse' : '',
+    style: {
+      background: isListening ? T.danger : T.bgCard,
+      border: `1px solid ${isListening ? T.danger : T.border}`,
+      color: isListening ? 'white' : T.textSub,
+      padding: '6px 10px',
+      borderRadius: '6px',
+      fontSize: '11px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontWeight: 600
+    }
+  }, isListening ? /*#__PURE__*/React.createElement(MicOff, {
+    size: 12
+  }) : /*#__PURE__*/React.createElement(Mic, {
+    size: 12
+  }), isListening ? t.voiceStop : t.voiceStart))), /*#__PURE__*/React.createElement("textarea", {
+    value: input,
+    onChange: e => setInput(e.target.value),
+    placeholder: mode.placeholder,
+    rows: 3,
+    onKeyDown: e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleRun();
+    },
+    style: {
+      width: '100%',
+      background: 'transparent',
+      border: 'none',
+      outline: 'none',
+      color: T.text,
+      fontSize: '15px',
+      fontFamily: 'inherit',
+      resize: 'none',
+      lineHeight: 1.5,
+      padding: 0
+    }
+  }), mode.examples?.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '12px',
+      paddingTop: '12px',
+      borderTop: `1px solid ${T.borderSoft}`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '10px',
+      color: T.textMute,
+      letterSpacing: '0.12em',
+      marginBottom: '8px',
+      fontWeight: 600,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, /*#__PURE__*/React.createElement(Lightbulb, {
+    size: 11
+  }), " ", t.examples), /*#__PURE__*/React.createElement("div", {
+    className: "examples-wrap",
+    style: {
+      display: 'flex',
+      gap: '6px',
+      flexWrap: 'wrap'
+    }
+  }, mode.examples.map((ex, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    onClick: () => useExample(ex),
+    className: "example-chip",
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      color: T.textSub,
+      padding: '6px 10px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      transition: 'all 0.15s',
+      fontWeight: 500,
+      textAlign: 'left'
+    }
+  }, ex)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: '14px',
+      paddingTop: '14px',
+      borderTop: `1px solid ${T.borderSoft}`,
+      gap: '10px',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: T.textMute,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.runHint, " \xB7 ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.saffron,
+      fontWeight: 600
+    }
+  }, t.engine)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px'
+    }
+  }, (input || output) && /*#__PURE__*/React.createElement("button", {
+    onClick: handleReset,
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      color: T.textSub,
+      padding: '8px 14px',
+      borderRadius: '6px',
+      fontSize: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontWeight: 500,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, /*#__PURE__*/React.createElement(RotateCcw, {
+    size: 12
+  }), " ", t.reset), /*#__PURE__*/React.createElement("button", {
+    onClick: handleRun,
+    disabled: !input.trim() || loading,
+    style: {
+      background: input.trim() && !loading ? mode.accent : '#E5E2DA',
+      color: input.trim() && !loading ? 'white' : T.textMute,
+      border: 'none',
+      padding: '8px 20px',
+      borderRadius: '6px',
+      fontSize: '13px',
+      fontWeight: 600,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, loading ? /*#__PURE__*/React.createElement(Loader2, {
+    size: 14,
+    className: "spinner"
+  }) : /*#__PURE__*/React.createElement(Send, {
+    size: 14
+  }), loading ? t.processing : t.generate)))), error && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '14px 18px',
+      background: '#FEE2E2',
+      border: '1px solid #FCA5A5',
+      borderRadius: '8px',
+      color: T.danger,
+      fontSize: '13px',
+      display: 'flex',
+      gap: '10px',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '10px',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement(AlertCircle, {
+    size: 16
+  }), " ", error), /*#__PURE__*/React.createElement("button", {
+    onClick: handleRun,
+    style: {
+      background: T.danger,
+      border: 'none',
+      color: 'white',
+      padding: '6px 14px',
+      borderRadius: '6px',
+      fontSize: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontWeight: 600
+    }
+  }, /*#__PURE__*/React.createElement(RotateCcw, {
+    size: 12
+  }), " Retry")), loading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '50px 20px',
+      textAlign: 'center',
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: '10px'
+    }
+  }, /*#__PURE__*/React.createElement(Loader2, {
+    size: 28,
+    className: "spinner",
+    style: {
+      color: mode.accent,
+      marginBottom: '14px'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.textSub,
+      fontSize: '13px',
+      letterSpacing: '0.04em',
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.loading), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: T.textMute,
+      fontSize: '11px',
+      marginTop: '6px',
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.loadingHint)), output && !loading && /*#__PURE__*/React.createElement("div", {
+    className: "output-anim",
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      borderRadius: '10px',
+      padding: '28px 32px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "output-header"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      fontWeight: 700,
+      letterSpacing: '0.16em',
+      color: mode.accent,
+      textTransform: 'uppercase',
+      marginBottom: '2px',
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.analyticalBrief, " \xB7 ", uiLang === 'mr' ? mode.labelMr : mode.label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: T.textMute,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, briefTime, " \xB7 ", t.brief, " #", briefCount, " \xB7 ", elapsedSec, "s")), /*#__PURE__*/React.createElement("div", {
+    className: "action-bar no-print"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handleWhatsApp,
+    style: {
+      background: '#25D366',
+      border: 'none',
+      color: 'white',
+      padding: '6px 10px',
+      borderRadius: '6px',
+      fontSize: '11px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontWeight: 600
+    }
+  }, /*#__PURE__*/React.createElement(Share2, {
+    size: 12
+  }), " ", t.share), /*#__PURE__*/React.createElement("button", {
+    onClick: handleDownload,
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      color: T.textSub,
+      padding: '6px 10px',
+      borderRadius: '6px',
+      fontSize: '11px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontWeight: 500
+    }
+  }, /*#__PURE__*/React.createElement(Download, {
+    size: 12
+  }), " ", t.download), /*#__PURE__*/React.createElement("button", {
+    onClick: handlePrint,
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      color: T.textSub,
+      padding: '6px 10px',
+      borderRadius: '6px',
+      fontSize: '11px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontWeight: 500
+    }
+  }, /*#__PURE__*/React.createElement(Printer, {
+    size: 12
+  }), " ", t.print), /*#__PURE__*/React.createElement("button", {
+    onClick: handleCopy,
+    style: {
+      background: T.bgCard,
+      border: `1px solid ${T.border}`,
+      color: copied ? T.success : T.textSub,
+      padding: '6px 10px',
+      borderRadius: '6px',
+      fontSize: '11px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontWeight: 500
+    }
+  }, copied ? /*#__PURE__*/React.createElement(Check, {
+    size: 12
+  }) : /*#__PURE__*/React.createElement(Copy, {
+    size: 12
+  }), copied ? t.copied : t.copy))), /*#__PURE__*/React.createElement(Renderer, {
+    data: output,
+    accent: mode.accent
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "footer",
+    style: {
+      marginTop: '40px',
+      paddingTop: '20px',
+      borderTop: `1px solid ${T.border}`,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: T.textSub,
+      lineHeight: 1.6,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.builtBy, " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: T.saffron,
+      fontWeight: 700
+    }
+  }, uiLang === 'mr' ? 'सी.ए. श्रीकांत दुबे' : 'CA Shrikant Dubey'), " \xB7 ", t.role), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: T.textMute,
+      letterSpacing: '0.08em',
+      fontWeight: 600,
+      fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
+    }
+  }, t.engine, " \xB7 v2.0"))));
+}
+createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(CMCoPilot, null));
+
+  </script>
+</body>
+</html>
