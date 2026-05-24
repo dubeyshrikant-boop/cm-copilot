@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1E3A5F">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="CM Co-Pilot">
   <title>CM Co-Pilot · Vande Intelligence Engine</title>
@@ -33,6 +33,19 @@
       80%, 100% { content: '...'; }
     }
   </style>
+
+  <!-- IMPORT MAP: fixes dual-React issue with lucide-react -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "react-dom": "https://esm.sh/react-dom@18.3.1?deps=react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
+      "lucide-react": "https://esm.sh/lucide-react@0.439.0?deps=react@18.3.1&external=react"
+    }
+  }
+  </script>
 </head>
 <body>
   <div id="root">
@@ -44,9 +57,10 @@
   </div>
 
   <script type="module">
-import React, { useState, useRef, useEffect } from 'https://esm.sh/react@18.3.1';
-import { Quote, Shield, Search, Briefcase, MapPin, Loader2, Send, Copy, Check, RotateCcw, AlertCircle, Sparkles, TrendingUp, Users, Target, Zap, ScrollText, Printer, Lightbulb, Megaphone, Compass, GitBranch, Mic, MicOff, Share2, Download, Languages } from 'https://esm.sh/lucide-react@0.439.0';
-import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
+import React, { useState, useRef, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Quote, Shield, Search, Briefcase, MapPin, Loader2, Send, Copy, Check, RotateCcw, AlertCircle, Sparkles, TrendingUp, Users, Target, Zap, ScrollText, Printer, Lightbulb, Megaphone, Compass, GitBranch, Mic, MicOff, Share2, Download, Languages } from 'lucide-react';
+
 const WORKER_URL = "https://cm-copilot.dubey-shrikant.workers.dev";
 
 /* ──────────────────────────────────────────────────────────────────────
