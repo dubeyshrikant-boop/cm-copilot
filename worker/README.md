@@ -6,11 +6,11 @@ with the `GEMINI_API_KEY` secret and streams the answer back.
 Deploy after editing (run inside this `worker/` folder):
 
 ```bash
-npx wrangler@4 deploy
+npx wrangler@latest deploy   # needs Node.js 22+
 ```
 
 The Gemini key is a Cloudflare secret — it is **not** in this repo. To change it:
 
 ```bash
-npx wrangler@4 secret put GEMINI_API_KEY
+npx wrangler@latest secret put GEMINI_API_KEY
 ```

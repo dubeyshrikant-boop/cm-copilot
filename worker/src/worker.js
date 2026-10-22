@@ -17,6 +17,10 @@
    - Per-visitor rate limit, input size cap
 
    Secrets:  GEMINI_API_KEY   (wrangler secret put GEMINI_API_KEY)
+
+   Quota (checked 22-10-2026): a FREE Gemini key allows only 20 gemini-2.5-flash
+   requests per day; after that the backup models are used (slower, often busy).
+   A paid (billing-enabled) key removes the daily cap and gets priority.
    ───────────────────────────────────────────────────────────────────── */
 
 const ALLOWED_ORIGINS = [
@@ -96,8 +100,8 @@ async function openGeminiStream(env, prompt, models) {
       if (res.ok) return { response: res, model: model.id };
 
       lastStatus = res.status;
-      lastError = (await res.text()).slice(0, 400);
-      console.log(`gemini ${model.id} attempt ${attempt + 1}: HTTP ${res.status} ${lastError.slice(0, 160)}`);
+      lastError = (await res.text()).slice(0, 2000);
+      console.log(`gemini ${model.id} attempt ${attempt + 1}: HTTP ${res.status} ${lastError.replace(/\s+/g, " ").slice(0, 1200)}`);
       if (!RETRYABLE.has(res.status)) break;          // e.g. 400 for this model → try next model
       if (res.status === 429) break;                  // quota for this model used up → next model now
       await sleep(attempt === 0 ? 600 : 1500);
