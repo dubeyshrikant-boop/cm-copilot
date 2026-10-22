@@ -296,27 +296,132 @@ const buildLangDirective = lang => {
 
 `;
 };
-const callEngine = async (systemPrompt, userInput, lang = 'mr') => {
-  const langDirective = buildLangDirective(lang);
+// Worker appends this if Gemini cut the answer off mid-stream.
+const ENGINE_ERROR_MARK = '[[ENGINE_ERROR]]';
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+// One streamed request. onPartial(obj) is called (at most once per frame) with the
+// brief parsed so far, so the page can draw it while Gemini is still writing.
+const streamOnce = async (prompt, onPartial, signal) => {
   const response = await fetch(WORKER_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      stream: true,
       messages: [{
         role: "user",
-        content: `${langDirective}${systemPrompt}\n\n--- INPUT ---\n${userInput}`
+        content: prompt
       }]
-    })
+    }),
+    signal
   });
-  if (!response.ok) throw new Error(`Engine error ${response.status}`);
-  const data = await response.json();
-  const text = data.content.filter(i => i.type === 'text').map(i => i.text).join('\n');
+  if (!response.ok) {
+    let msg = `Engine error ${response.status}`;
+    try {
+      msg = (await response.json()).error || msg;
+    } catch (e) {}
+    const err = new Error(msg);
+    err.retryable = RETRYABLE_STATUS.has(response.status);
+    throw err;
+  }
+  // Worker not yet updated (old JSON response) — still works, just not streamed.
+  if (!(response.headers.get('Content-Type') || '').startsWith('text/plain')) {
+    const data = await response.json();
+    return parseEngineJSON(data.content.filter(i => i.type === 'text').map(i => i.text).join('\n'));
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let frame = null;
+  const publish = () => {
+    frame = null;
+    try {
+      onPartial(JSON.parse(repairJSON(text.slice(text.indexOf('{')))));
+    } catch (e) {/* not parseable yet — wait for more text */}
+  };
+  for (;;) {
+    const {
+      done,
+      value
+    } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, {
+      stream: true
+    });
+    if (onPartial && !frame && text.includes('{')) frame = requestAnimationFrame(publish);
+  }
+  text += decoder.decode();
+  if (frame) cancelAnimationFrame(frame);
+  if (text.includes(ENGINE_ERROR_MARK)) {
+    const err = new Error('Engine stopped mid-brief');
+    err.retryable = true;
+    throw err;
+  }
   return parseEngineJSON(text);
 };
+const callEngine = async (systemPrompt, userInput, lang = 'mr', onPartial) => {
+  const prompt = `${buildLangDirective(lang)}${systemPrompt}\n\n--- INPUT ---\n${userInput}`;
+  let lastError;
+  // One automatic retry for busy / cut-off / network errors, so the user rarely sees them.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+    try {
+      return await streamOnce(prompt, onPartial, controller.signal);
+    } catch (e) {
+      lastError = e.name === 'AbortError' ? new Error('Engine timed out — please retry') : e;
+      const retryable = e.retryable || e.name === 'TypeError' || e.message === 'Brief was incomplete — please retry';
+      if (!retryable || attempt === 1) break;
+      if (onPartial) onPartial(null); // clear the half-written brief before retrying
+      await new Promise(r => setTimeout(r, 800));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+};
+
+// Keeps the last fully drawable brief on screen if a half-written one can't render yet.
+class SafeRender extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      failed: false
+    };
+    this.lastGood = null;
+  }
+  static getDerivedStateFromError() {
+    return {
+      failed: true
+    };
+  }
+  componentDidCatch() {}
+  componentDidUpdate(prev) {
+    if (this.state.failed && prev.data !== this.props.data) this.setState({
+      failed: false
+    });else if (!this.state.failed) this.lastGood = this.props.data;
+  }
+  componentDidMount() {
+    this.lastGood = this.props.data;
+  }
+  render() {
+    const {
+      Renderer,
+      data,
+      accent
+    } = this.props;
+    if (!this.state.failed) return /*#__PURE__*/React.createElement(Renderer, {
+      data,
+      accent
+    });
+    return this.lastGood ? /*#__PURE__*/React.createElement(Renderer, {
+      data: this.lastGood,
+      accent
+    }) : null;
+  }
+}
 
 /* ──────────────────────────────────────────────────────────────────────
    WHATSAPP FORMATTER  —  plain text with emojis
@@ -1601,7 +1706,7 @@ function CMCoPilot() {
     setOutput(null);
     const start = Date.now();
     try {
-      const result = await callEngine(mode.systemPrompt, input, uiLang);
+      const result = await callEngine(mode.systemPrompt, input, uiLang, partial => setOutput(partial));
       setOutput(result);
       setElapsedSec(Math.round((Date.now() - start) / 1000));
       setBriefTime(new Date().toLocaleString('en-IN', {
@@ -1614,6 +1719,7 @@ function CMCoPilot() {
       }));
       setBriefCount(c => c + 1);
     } catch (e) {
+      setOutput(null);
       setError(e.message || 'Engine error — please retry');
     } finally {
       setLoading(false);
@@ -1625,20 +1731,20 @@ function CMCoPilot() {
     setError(null);
   };
   const handleCopy = () => {
-    if (!output) return;
+    if (!output || loading) return;
     const text = formatForWhatsApp(activeMode, output, mode.label, briefTime);
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
   const handleWhatsApp = () => {
-    if (!output) return;
+    if (!output || loading) return;
     const text = formatForWhatsApp(activeMode, output, mode.label, briefTime);
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
   const handleDownload = () => {
-    if (!output) return;
+    if (!output || loading) return;
     const text = formatForWhatsApp(activeMode, output, mode.label, briefTime);
     const blob = new Blob([text], {
       type: 'text/plain;charset=utf-8'
@@ -2127,7 +2233,7 @@ function CMCoPilot() {
     }
   }, /*#__PURE__*/React.createElement(RotateCcw, {
     size: 12
-  }), " Retry")), loading && /*#__PURE__*/React.createElement("div", {
+  }), " Retry")), loading && !output && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '50px 20px',
       textAlign: 'center',
@@ -2156,7 +2262,7 @@ function CMCoPilot() {
       marginTop: '6px',
       fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
     }
-  }, t.loadingHint)), output && !loading && /*#__PURE__*/React.createElement("div", {
+  }, t.loadingHint)), output && /*#__PURE__*/React.createElement("div", {
     className: "output-anim",
     style: {
       background: T.bgCard,
@@ -2182,7 +2288,7 @@ function CMCoPilot() {
       color: T.textMute,
       fontFamily: uiLang === 'mr' ? '"Arial Unicode MS", sans-serif' : 'inherit'
     }
-  }, briefTime, " \xB7 ", t.brief, " #", briefCount, " \xB7 ", elapsedSec, "s")), /*#__PURE__*/React.createElement("div", {
+  }, loading ? (uiLang === 'mr' ? 'नवीन brief तयार होत आहे' : 'Generating new brief') : [briefTime, " \xB7 ", t.brief, " #", briefCount, " \xB7 ", elapsedSec, "s"])), /*#__PURE__*/React.createElement("div", {
     className: "action-bar no-print"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: handleWhatsApp,
@@ -2250,7 +2356,23 @@ function CMCoPilot() {
     size: 12
   }) : /*#__PURE__*/React.createElement(Copy, {
     size: 12
-  }), copied ? t.copied : t.copy))), /*#__PURE__*/React.createElement(Renderer, {
+  }), copied ? t.copied : t.copy))), loading && /*#__PURE__*/React.createElement("div", {
+    className: "writing-indicator",
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      marginBottom: '14px',
+      color: mode.accent,
+      fontSize: '12px',
+      fontWeight: 600,
+      letterSpacing: '0.04em'
+    }
+  }, /*#__PURE__*/React.createElement(Loader2, {
+    size: 14,
+    className: "spinner"
+  }), uiLang === 'mr' ? 'लिहित आहे…' : 'Writing…'), /*#__PURE__*/React.createElement(SafeRender, {
+    Renderer: Renderer,
     data: output,
     accent: mode.accent
   })), /*#__PURE__*/React.createElement("div", {

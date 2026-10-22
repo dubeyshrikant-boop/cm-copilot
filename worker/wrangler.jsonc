@@ -1,0 +1,30 @@
+{
+  "name": "cm-copilot",
+  "main": "src/worker.js",
+  "workers_dev": true,
+  "preview_urls": false,
+  "compatibility_date": "2026-05-24",
+  // प्रत्येक visitor ला मिनिटाला कमाल १० briefs (Gemini free tier = १० प्रति मिनिट)
+  // Gemini सोबतच्या Google Cloud region मध्ये चालवा: कमी विलंब, आणि
+  // "User location is not supported" (काही Cloudflare ठिकाणांहून Google नकार देते) टळते
+  "placement": { "mode": "targeted", "region": "gcp:us-central1" },
+  "ratelimits": [
+    { "name": "LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  }
+}
